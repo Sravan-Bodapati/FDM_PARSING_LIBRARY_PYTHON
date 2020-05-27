@@ -223,7 +223,7 @@ class FdmFileGen:
                 toByte -=1
         return
 
-    def fnLogError(self, errorDescription):
+    def fnLogError(errorDescription):
         cursor = conn.cursor()
         current_time = datetime.datetime.now()
         cursor.execute("INSERT INTO [sqlAssetManager].[dbo].[errorLog] (errorDescription, errorTime) VALUES (?, ?)", errorDescription, current_time)
@@ -375,12 +375,40 @@ class FdmFileGen:
             if (IsDataTypeConsistent(nextDataType, nextRecordSize) == 0):
                 return 0
         return 1
-            
-        
-
-
-        
-
+		
+    def fn_parseMsgField(self, fromMsgString, fromByte, fromBit, fromFldLen, fromFldType):
+        TYPE_INT = 1
+        fromBitVal = 0
+        toInt = 0
+        toBit = 0
+        workByte = []
+        for i in range(0, fromFldLen):
+            workByte = fromMsgString[fromByte]
+            fromBitVal = (int(workByte) >> fromBit) & 0x01
+            if (fromBitVal == 1):
+                toInt |= (1 << toBit)
+            toBit = toBit + 1
+            fromBit = fromBit + 1
+            if (fromBit > 7):
+                fromBit = 0
+                fromByte = fromByte - 1
+        if ((fromFldType == TYPE_INT) & (fromBitVal == 1)):
+            fillLen = 32 - fromFldLen
+            for i in range(0, fillLen):
+                toInt |= (1 << toBit)
+                toBit = toBit + 1
+        return int(toInt)
+		
+		
+    def FillFdmDataTypesTable(self):
+        cursor = conn.cursor()
+        query = "SELECT dataType, dataTypeName FROM [sqlFdm].[dbo].[ufdmDataTypeLookup]"
+        row = []
+        try:
+            row = cursor.execute(query)
+        except:
+            fnLogError("FdmFileGenLib failed to FillFdmDataTypesTable; error: ")
+        return row
 
 # Create a Rocket object, and have it start to move up.
 conn = pyodbc.connect('Driver={SQL Server};'
@@ -389,7 +417,7 @@ conn = pyodbc.connect('Driver={SQL Server};'
                       'Trusted_Connection=yes;')
 my_result = FdmFileGen()
 inputArray = ['1100','0','1','1','1','0','1','0','0','0','0','1','0','1','1']
-resultString = my_result.IsFdmRecordValid(inputArray,0,203975,30,30, 2, 1)
+resultString = my_result.FillFdmDataTypesTable()
 print (resultString)
 
 
