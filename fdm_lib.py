@@ -9,6 +9,7 @@ from decimal import Decimal
 import math
 import datetime
 import numpy as np
+import struct
 
 class FdmFileGen:
     conn = pyodbc.connect('Driver={SQL Server};'
@@ -523,10 +524,57 @@ class FdmFileGen:
 
     def RunSqlParameterizedNonQuery(self, query):
         cursor = conn.cursor()
-		if(cursor.execute(query)):
+        if(cursor.execute(query)):
             return 1
         else:
             return 0
+
+    def RunSqlParameterizedScalarQuery(self, query):
+        cursor = conn.cursor()
+        result = cursor.execute(query)
+        return result
+
+    def GetAgentParameters(self):
+        cursor = conn.cursor()
+        query = "SELECT * FROM [sqlTrackerAgent].[dbo].[agentParameters]"
+        result = cursor.fetchone()
+        return result
+
+    def ExtractSsdNumberFromFdmFile(self, uploadedFile):
+        fileBytes = open(uploadedFile, "rb").read()
+        ssdNumber = ""
+        firstByteOfDataRecord = 68
+        isFlawedDataReported = 0
+        try:
+            if (len(fileBytes) < 68):
+                return ssdNumber
+            if ((fileBytes[67] != 0xFF) | (fileBytes[66] != 0xFF) | (fileBytes[65] != 0xFF) | (fileBytes[64] != 0xFF)):
+                return ssdNumber
+            while (fileBytes.Length > firstByteOfDataRecord + 7):
+                byteRecordSize = []
+                for i in range(firstByteOfDataRecord,2):
+                    byteRecordSize[i - firstByteOfDataRecord] = fileBytes[i]
+                recordSize = struct.unpack('<HH', byteRecordSize)
+                if (recordSize < 1):
+                    if (isFlawedDataReported == 0):
+                        isFlawedDataReported = 1
+                    firstByteOfDataRecord = firstByteOfDataRecord + 10
+                    continue
+                dataType = fileBytes[firstByteOfDataRecord + 2]
+                if ((ssdNumber == "") & (dataType == constants.TRACKER_CONFIG_MESSAGE_TYPE)):
+                    byteTrackerConfigMessage = []
+                    for i in range(firstByteOfDataRecord + 8, recordSize - 8):
+                        byteTrackerConfigMessage[i - firstByteOfDataRecord -8] = fileBytes[j]
+                    trackerConfigMessage = unicode(byteTrackerConfigMessage, encoding)
+                    trackerConfigMessageFields = trackerConfigMessage.split("~")
+                    ssdNumber = trackerConfigMessageFields[48]
+                if (ssdNumber != ""):
+                    break
+                firstByteOfDataRecord = firstByteOfDataRecord + recordSize
+        except:
+            fnLogError("FdmFileGen ExtractSsdNumberFromFdmFile failed; error: ")
+        return ssdNumber
+                    
     
     def AppendParseOutputRow(outputTextList, firstByteOfDataRecord, dataRecordNumber, dataType, uptime, gpsTime, labelNumber, labelName, discretes, decodedData, units, rawData, exceedance, fileParseExceedanceEventsTable, alertPriority):
         return
