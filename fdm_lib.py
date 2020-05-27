@@ -87,7 +87,7 @@ class FdmFileGen:
         positionDateTime = datetime(year, month, day, hour, minute, second)
         return positionDateTime
 
-    def fnConvertLatLong(self, latLong, hemi):
+    def fnConvertLatLong(latLong, hemi):
         formattedLatLong = Decimal(latLong)	
         dotPos = latLong.index(".")
         aLatLong = latLong
@@ -606,6 +606,91 @@ class FdmFileGen:
                                 powerTwoNum = int(csDecimalWeight)
                         formattedDataBitText = textPrefix + str(powerTwoNum) + "E" + str(powerN)
         return formattedDataBitText
+		
+    def DecodeInternalNmeaData(self, lineContents, pdop):
+        decodedData = "NMEA type not currently decoded"
+        pdop = -1
+        if ((lineContents[0] == "$GPRMC") | (lineContents[0] == "$GNRMC")):
+            if ((len(lineContents) == 13) | (len(lineContents) == 14)):
+                isBlankEntry = 0
+                for i in range(1,10):
+                    if (lineContents[i] == ""):
+                        isBlankEntry = 1
+                        decodedData = "RMC sentence has a blank entry in element " + str(i) + "."
+                        break
+                if (isBlankEntry == 0 & (lineContents[2] == "A")):
+                    positionTime = int(float(lineContents[1]))
+                    latitude = fnConvertLatLong(lineContents[3], lineContents[4])
+                    longitude = fnConvertLatLong(lineContents[5], lineContents[6])
+                    speed = float(lineContents[7])
+                    course = float(lineContents[8])
+                    positionDateTime = fnConvertDateTime(lineContents[9], lineContents[1])
+                    decodedData = "RMC: PositionTime=" + str(positionDateTime) + "; Latitude=" + str(latitude) + "; Longitude=" + str(longitude) + ";  Speed=" + str(speed) + ";  Course=" + str(course) + "."
+                else:
+                    decodedData = "RMC sentence has Status Void."
+            else:
+                decodedData = "RMC sentence has " + str(len(lineContents)) + " lines, rather than the expected 13 or 14 lines."
+        elif ((lineContents[0] == "$GPGGA") | (lineContents[0] == "$GNGGA")):
+            if ((len(lineContents) == 15) | (len(lineContents) == 16)):
+                isBlankEntry = false
+                for i in range(1,11):
+                    if (lineContents[i] == ""):
+                        isBlankEntry = 1
+                        decodedData = "GGA sentence does not have 15 or 16 lines."
+                        break
+                if (isBlankEntry == 0 & (lineContents[6] != "0")):
+                    positionTime = int(float(lineContents[1]))
+                    latitude = fnConvertLatLong(lineContents[2], lineContents[3])
+                    longitude = fnConvertLatLong(lineContents[4], lineContents[5])
+                    altitude = float(lineContents[9])
+                    anyDate = fnConvertDateTime("010117", lineContents[1])
+                    decodedData = "GGA: FixTime=" + str(anyDate) + "; Latitude=" + str(latitude) + "; Longitude=" + str(longitude) + "; Altitude=" + str(altitude) + "."
+                else:
+                    decodedData = "GGA sentence has Fix Quality Invalid."
+        elif ((lineContents[0] == "$GPGSA") | (lineContents[0] == "$GNGSA")):
+            if ((len(lineContents) == 18) | (len(lineContents) == 19)):
+                isBlankEntry = 0
+                for i in range(1,3):
+                    if (lineContents[i] == ""):
+                        isBlankEntry = 1
+                        decodedData = "GSA sentence has a blank entry in element " + str(i) + "."
+                        break
+                for i in range(15,18):
+                    if (lineContents[i] == ""):
+                        isBlankEntry = 1
+                        decodedData = "GSA sentence has a blank entry in element " + str(i) + "."
+                        break
+                if (isBlankEntry == 0 & (lineContents[2] != "1")):
+                    if(lineContents[1] == "A"):
+                        fixMode = "Auto"
+                    elif(lineContents[1] == "M"):
+                        fixMode = "Manual"
+                    else:
+                        fixMode = "Unknown Fix Mode "
+                    fixMode = fixMode + lineContents[1]
+                    if(lineContents[2] == "2"):
+                        fixType = "2D"
+                    elif(lineContents[2] == "3"):
+                        fixType = "3D"
+                    else:
+                        fixType = "Unknown Fix Type "
+                    fixType = fixType + lineContents[2]
+                    activeSatellites = ""
+                    for i in range(3,15):
+                        if (lineContents[i] != ""):
+                            activeSatellites = activeSatellites + lineContents[i] + ", "
+                    activeSatellites = activeSatellites.rstrip(',')
+                    activeSatellites = activeSatellites.rstrip(' ')
+                    csPdop = lineContents[15]
+                    hDop = lineContents[16]
+                    vDop = lineContents[17]
+                    decodedData = "GSA: FixMode=" + fixMode + "; FixType=" + fixType + "; Active Satellites=" + activeSatellites + ";  PDOP=" + csPdop + ";  HDOP=" + hDop + ";  VDOP=" + vDop
+                else:
+                    decodedData = "GSA sentence has a Fix Type of No Fix."
+            else:
+                decodedData = "GSA sentence has " + str(len(lineContents)) + " lines, rather than the expected 18 or 19 lines."
+        return decodedData
+				
 							
                     
     
