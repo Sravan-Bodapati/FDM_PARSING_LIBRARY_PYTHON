@@ -574,6 +574,39 @@ class FdmFileGen:
         except:
             fnLogError("FdmFileGen ExtractSsdNumberFromFdmFile failed; error: ")
         return ssdNumber
+
+    def FormatDataBitText(self, submittedDataBitText, labelType):
+        formattedDataBitText = submittedDataBitText
+        if (labelType == "BCD"):
+            colonPos = submittedDataBitText.index(":")
+            textPrefix = ""
+            if ((colonPos > 0) & (len(submittedDataBitText) > (colonPos + 1))):
+                textPrefix = submittedDataBitText[0 : colonPos + 1]
+                if (submittedDataBitText.index("E", colonPos + 2) < 0):
+                    csDecimalWeight = submittedDataBitText[colonPos + 1:].lstrip('0')
+                    if (csDecimalWeight == ""):
+                        formattedDataBitText = textPrefix + "0E0"
+                        return formattedDataBitText
+                    decimalWeight = 0
+                    decimalPointPos = csDecimalWeight.index(".")
+                    if ((float(decimalWeight)) & (decimalPointPos <= 0)):
+                        powerTwoNum = 0
+                        powerN = 0
+                        if (decimalPointPos == 0):
+                            csDecimalWeight = csDecimalWeight.rstrip("0")
+                            powerN = -(csDecimalWeight.Length - decimalPointPos - 1)
+                            powerTwoNum = int(csDecimalWeight[1:])
+                        else:
+                            firstZeroPos = csDecimalWeight.index("0")
+                            if (firstZeroPos >= 0):
+                                powerN = (len(csDecimalWeight) - firstZeroPos)
+                                powerTwoNum = int(csDecimalWeight[0 : len(csDecimalWeight) - powerN])
+                            else:
+                                powerN = 0
+                                powerTwoNum = int(csDecimalWeight)
+                        formattedDataBitText = textPrefix + str(powerTwoNum) + "E" + str(powerN)
+        return formattedDataBitText
+							
                     
     
     def AppendParseOutputRow(outputTextList, firstByteOfDataRecord, dataRecordNumber, dataType, uptime, gpsTime, labelNumber, labelName, discretes, decodedData, units, rawData, exceedance, fileParseExceedanceEventsTable, alertPriority):
