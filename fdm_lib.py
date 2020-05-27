@@ -8,6 +8,7 @@ import re
 from decimal import Decimal
 import math
 import datetime
+import numpy as np
 
 class FdmFileGen:
     conn = pyodbc.connect('Driver={SQL Server};'
@@ -113,7 +114,7 @@ class FdmFileGen:
             hexString += hex(decimal_representation)
         return hexString
 
-    def IsDataTypeConsistent(self, dataType, recordSize):
+    def IsDataTypeConsistent(dataType, recordSize):
         isConsistent = 1 if recordSize < 3000 else 0
         if(dataType == 0):
             isConsistent = 1 if recordSize == 8 else 0
@@ -235,11 +236,11 @@ class FdmFileGen:
         gpsDay = int(fileBytes[startByte + 8])
         byteGpsUptimeMs = []
         for i in range(startByte, startByte +4):
-            byteGpsUptimeMs[i - startByte] = fileBytes[startByte]
+            byteGpsUptimeMs[i - startByte] = fileBytes[i]
         intGpsUptimeMs = prepare_bytes_on_string(byteGpsUptimeMs)
         byteGpsTime = []
         for i in range(startByte + 4, startByte + 8):
-            byteGpsTime[i - startByte - 4] = fileBytes[startByte + 4]
+            byteGpsTime[i - startByte - 4] = fileBytes[i]
         intGpsTime = prepare_bytes_on_string(byteGpsTime)
         if ((gpsYear >= 2017) & (gpsYear < 2050) & (gpsMonth > 0) & (gpsMonth < 13) & (gpsDay > 0) & (gpsDay < 32)):
             gpsTime = datetime.date(gpsYear, gpsMonth, gpsDay)
@@ -344,6 +345,38 @@ class FdmFileGen:
                 if (dSummedValue < dMinThresh):
                     exceedance = "BB"
         return exceedance
+		
+		
+    def IsFdmRecordValid(self, fileBytes, firstByteOfDataRecord, lastGoodUptime, uptime, recordSize, dataType, isPrimaryRecordValid):
+        isPrimaryRecordValid = 0
+        if (len(fileBytes) < (firstByteOfDataRecord + recordSize)):
+            return 0
+        if(IsDataTypeConsistent(dataType, recordSize) == 0):
+            return 0
+        isPrimaryRecordValid = 1
+        if (len(fileBytes) > (firstByteOfDataRecord + recordSize)):
+            if (firstByteOfDataRecord + recordSize == len(fileBytes) - 2):
+                if ((fileBytes[firstByteOfDataRecord + recordSize] == 0xFF) & (fileBytes[firstByteOfDataRecord + recordSize + 1] == 0xFF)):
+                    return isPrimaryRecordValid
+            if (len(fileBytes) < (firstByteOfDataRecord + recordSize + 8)):
+                return 0
+            byteRecordSize = []
+            for i in range(firstByteOfDataRecord + recordSize, firstByteOfDataRecord + recordSize + 2):
+                byteRecordSize[i - firstByteOfDataRecord - recordSize] = fileBytes[i]
+            nextRecordSize = numpy.array(unpack('%sh' % len(byteRecordSize) / struct.calcsize('h'), byteRecordSize))
+            nextDataType = fileBytes[firstByteOfDataRecord + recordSize + 2]
+            byteMsSincePowerUp = []
+            for i in range(firstByteOfDataRecord + 4, firstByteOfDataRecord + 8):
+                byteMsSincePowerUp[i - firstByteOfDataRecord - 4] = fileBytes[i]
+            int.from_bytes(byteMsSincePowerUp, byteorder='big', signed=False)
+            nextUptime = float(dblMsSincePowerUp) / 1000
+            if (((nextUptime - uptime) > 30) | (nextUptime < uptime)):
+                return 0
+            if (IsDataTypeConsistent(nextDataType, nextRecordSize) == 0):
+                return 0
+        return 1
+            
+        
 
 
         
@@ -356,7 +389,7 @@ conn = pyodbc.connect('Driver={SQL Server};'
                       'Trusted_Connection=yes;')
 my_result = FdmFileGen()
 inputArray = ['1100','0','1','1','1','0','1','0','0','0','0','1','0','1','1']
-resultString = my_result.DetermineExceedanceCode('129.9',0,'70.6','80.9','30.3')
+resultString = my_result.IsFdmRecordValid(inputArray,0,203975,30,30, 2, 1)
 print (resultString)
 
 
