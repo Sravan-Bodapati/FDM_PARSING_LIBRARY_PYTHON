@@ -520,6 +520,13 @@ class FdmFileGen:
             exceedance = DetermineExceedanceCode(str(floatOutput), threshOpsIndexNum, minThresh, maxThresh, offset)
             floatOutput = float + float(Offset)
             AppendParseOutputRow(outputTextList, firstByteOfDataRecord, dataRecordNumber, dataType, uptime, gpsTime, labelNumber, labelName, discretes, float(floatOutput), units, rawData, exceedance, fileParseExceedanceEventsTable, alertPriority)
+
+    def RunSqlParameterizedNonQuery(self, query):
+        cursor = conn.cursor()
+		if(cursor.execute(query)):
+            return 1
+        else:
+            return 0
     
     def AppendParseOutputRow(outputTextList, firstByteOfDataRecord, dataRecordNumber, dataType, uptime, gpsTime, labelNumber, labelName, discretes, decodedData, units, rawData, exceedance, fileParseExceedanceEventsTable, alertPriority):
         return
