@@ -107,7 +107,7 @@ class FdmFileGen:
             result += asciiHex[int(binaryIn[x + startingPosition]) & 0x0F]
         return result
 
-    def ByteArrayToAsciiHexString(self, bytes, startPosition, length):
+    def ByteArrayToAsciiHexString(bytes, startPosition, length):
         hexString = ""
         for x in range(startPosition, startPosition + length):
             decimal_representation = int(bytes[x], 2)
@@ -410,6 +410,123 @@ class FdmFileGen:
             fnLogError("FdmFileGenLib failed to FillFdmDataTypesTable; error: ")
         return row
 
+    def ProcessMultiFloatDataTypes(self, recordSize, firstByteOfDataRecord, fileBytes, dataType, csDataType, fdmLabels, fileParseExceedanceEventsTable, dataRecordNumber, uptime,gpsTime, outputTextList, exceptionTextList, numberOfFloats):
+        labelNumber = ""
+        labelName = ""
+        discretes = ""
+        units = ""
+        rawData = ""
+        subType = ""
+        threshOpsIndexNum = -1
+        exceedance = ""
+        minThresh = ""
+        maxThresh = ""
+        offset = ""
+        alertPriority = ""
+        if (recordSize != 8 + (4 * numberOfFloats)):
+            return
+        subTypeArray = ["firstValue", "secondValue", "thirdValue"]
+        labelArray = [23, 24, 25, 26, 27]
+        cursor = conn.cursor()
+        query = "SELECT * FROM [sqlFdm].[dbo].[fdmLabels] WHERE uFdmDataType = '" + str(dataType) + "'"
+        cursor.execute(query)
+        Array = []
+        for row in cursor: 
+            Array += [row[0]]
+        if (len(Array) == 0):
+            return
+        isAnySubTypePresent = 0
+        for i in range(0, numberOfFloats):
+            subType = subTypeArray[i]
+            query1 = "SELECT * FROM [sqlFdm].[dbo].[fdmLabels] WHERE uFdmDataType = '" + str(dataType) + "' AND uFdmSubType='" + str(subType) + "'"
+            cursor.execute(query1)
+            Array1 = []
+            for row in cursor: 
+                Array1 += [row[0]]
+            if(len(Array1) > 0):
+                isAnySubTypePresent = 1
+                break
+        if(isAnySubTypePresent == 0):
+            query = "SELECT * FROM [sqlFdm].[dbo].[fdmLabels] WHERE uFdmDataType = '" + str(dataType) + "'"
+            cursor.execute(query)
+            Array = []
+            for row in cursor: 
+                Array += [row[0]]
+            if (len(Array) > 1 & (dataType not in labelArray)):
+                return
+            decodedData = "Float values: "
+            for i in range(0, numberOfFloats):
+                byteValue = []
+                for j in range((firstByteOfDataRecord + 8 + (4 * i)), len(fileBytes),4):
+                    byteValue[j - (firstByteOfDataRecord + 8 + (4 * i))] = fileBytes[j]
+                floatOutput = struct.unpack('f', byteValue)
+                decodedData = decodedData + str(floatOutput) + ","
+                rawData = rawData + ByteArrayToAsciiHexString(byteValue, 0, 4) + ","
+            cursor.execute(query)
+            for row in cursor:
+                labelNumber = getattr(row, 'labelNumber')
+                labelNumber = str(labelNumber)
+                labelName = getattr(row, 'labelName')
+                labelName = str(labelName)
+                units = getattr(row, 'units')
+                units = str(units)
+                threshOpsIndexNum = getattr(row, 'threshOpsIndexNum')
+                threshOpsIndexNum = int(threshOpsIndexNum)
+                minThresh = getattr(row, 'minThresh')
+                minThresh = str(minThresh)
+                maxThresh = getattr(row, 'maxThresh')
+                maxThresh = str(maxThresh)
+                offset = getattr(row, 'offset')
+                offset = str(offset)
+                alertPriority = getattr(row, 'alertPriority')
+                alertPriority = str(alertPriority)
+                AppendParseOutputRow(outputTextList, firstByteOfDataRecord, dataRecordNumber, dataType, uptime, gpsTime, labelNumber, labelName, discretes, decodedData, units, rawData, exceedance, fileParseExceedanceEventsTable, alertPriority)
+                return
+        for i in range(0, numberOfFloats):
+            byteValue = []
+            for j in range((firstByteOfDataRecord + 8 + (4 * i)), len(fileBytes),4):
+                byteValue[j - (firstByteOfDataRecord + 8 + (4 * i))] = fileBytes[j]
+            floatOutput = struct.unpack('f', byteValue)
+            rawData = ByteArrayToAsciiHexString(byteValue, 0, 4)
+            subType = subTypeArray[i]
+            query = "SELECT * FROM [sqlFdm].[dbo].[fdmLabels] WHERE uFdmDataType = '" + str(dataType) + "' AND uFdmSubType='" + str(subType) + "'"
+            cursor.execute(query)
+            Array1 = []
+            for row in cursor: 
+                Array1 += [row[0]]
+            if(len(Array1) == 0):
+                continue
+            elif(len(Array1) == 0):
+                continue
+            else:
+                cursor.execute(query)
+                for row in cursor:
+                    labelNumber = getattr(row, 'labelNumber')
+                    labelNumber = str(labelNumber)
+                    labelName = getattr(row, 'labelName')
+                    labelName = str(labelName)
+                    units = getattr(row, 'units')
+                    units = str(units)
+                    threshOpsIndexNum = getattr(row, 'threshOpsIndexNum')
+                    threshOpsIndexNum = int(threshOpsIndexNum)
+                    minThresh = getattr(row, 'minThresh')
+                    minThresh = str(minThresh)
+                    maxThresh = getattr(row, 'maxThresh')
+                    maxThresh = str(maxThresh)
+                    offset = getattr(row, 'offset')
+                    offset = str(offset)
+                    alertPriority = getattr(row, 'alertPriority')
+                    alertPriority = str(alertPriority)
+            exceedance = DetermineExceedanceCode(str(floatOutput), threshOpsIndexNum, minThresh, maxThresh, offset)
+            floatOutput = float + float(Offset)
+            AppendParseOutputRow(outputTextList, firstByteOfDataRecord, dataRecordNumber, dataType, uptime, gpsTime, labelNumber, labelName, discretes, float(floatOutput), units, rawData, exceedance, fileParseExceedanceEventsTable, alertPriority)
+    
+    def AppendParseOutputRow(outputTextList, firstByteOfDataRecord, dataRecordNumber, dataType, uptime, gpsTime, labelNumber, labelName, discretes, decodedData, units, rawData, exceedance, fileParseExceedanceEventsTable, alertPriority):
+        return
+		
+		
+		
+		
 # Create a Rocket object, and have it start to move up.
 conn = pyodbc.connect('Driver={SQL Server};'
                       'Server=IE1FLTHNYBPQ2;'
@@ -417,7 +534,7 @@ conn = pyodbc.connect('Driver={SQL Server};'
                       'Trusted_Connection=yes;')
 my_result = FdmFileGen()
 inputArray = ['1100','0','1','1','1','0','1','0','0','0','0','1','0','1','1']
-resultString = my_result.FillFdmDataTypesTable()
+resultString = my_result.ProcessMultiFloatDataTypes(20,0,inputArray,22,4,5,'',1,2222,3456,'','',3)
 print (resultString)
 
 
